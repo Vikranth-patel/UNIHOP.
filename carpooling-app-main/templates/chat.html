@@ -1,0 +1,204 @@
+{% extends "base.html" %} 
+
+{% block content %}
+<div class="chat-container">
+  <div class="chat-header">
+    <div class="header-info">
+      <h2><i class="fa-solid fa-comments"></i> Ride Chat</h2>
+      <p>
+        {{ ride.origin }} <i class="fa-solid fa-arrow-right"></i> {{ ride.destination }}
+      </p>
+    </div>
+    <button onclick="pingDriver({{ ride.id }})" class="btn-ping" title="Ping Driver">
+      <i class="fa-solid fa-bell"></i> Ping
+    </button>
+  </div>
+
+  <div id="chat-box" class="chat-box">
+    {% for msg in messages %}
+    <div class="message {{ 'sent' if msg.sender_id == session.user_id else 'received' }}">
+      <div class="msg-bubble">
+        {% if msg.sender_id != session.user_id %}
+        <small class="msg-sender">{{ msg.sender.name }}</small>
+        {% endif %}
+        <p>{{ msg.message }}</p>
+        <span class="msg-time">{{ msg.created_at.strftime('%I:%M %p') }}</span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="chat-input-area">
+    <form id="chat-form" onsubmit="sendMessage(event)">
+      <input 
+        type="text" 
+        id="message-input" 
+        placeholder="Type a message..." 
+        autocomplete="off" 
+        required 
+      />
+      <button type="submit" class="btn-send">
+        <i class="fa-solid fa-paper-plane"></i>
+      </button>
+    </form>
+  </div>
+</div>
+
+<style>
+  .chat-container {
+    display: flex;
+    flex-direction: column;
+    height: 75vh;
+    max-width: 800px;
+    margin: 20px auto;
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(15px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    overflow: hidden;
+  }
+
+  .chat-header {
+    padding: 15px 20px;
+    background: rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .header-info h2 { font-size: 1.2rem; color: #fff; margin: 0; }
+  .header-info p { margin: 0; color: #94a3b8; font-size: 0.9rem; }
+
+  .chat-box {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+  }
+
+  .message { display: flex; flex-direction: column; max-width: 75%; }
+  .sent { align-self: flex-end; align-items: flex-end; }
+  .received { align-self: flex-start; align-items: flex-start; }
+
+  .msg-bubble {
+    padding: 12px 18px;
+    border-radius: 18px;
+    position: relative;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    word-wrap: break-word;
+  }
+
+  .sent .msg-bubble {
+    background: #3b82f6;
+    color: white;
+    border-bottom-right-radius: 4px;
+  }
+
+  .received .msg-bubble {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    border-bottom-left-radius: 4px;
+  }
+
+  .msg-sender { font-size: 0.75rem; color: #f43f5e; font-weight: bold; margin-bottom: 4px; display: block; }
+  .sent .msg-sender { display: none; }
+  .msg-time { font-size: 0.65rem; opacity: 0.7; display: block; margin-top: 5px; text-align: right; }
+
+  .chat-input-area {
+    padding: 15px;
+    background: rgba(0, 0, 0, 0.2);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  #chat-form { display: flex; gap: 10px; width: 100%; }
+
+  #message-input {
+    flex-grow: 1;
+    padding: 12px 20px;
+    border-radius: 50px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    outline: none;
+  }
+
+  .btn-send {
+    width: 50px; height: 50px;
+    border-radius: 50%;
+    background: #3b82f6;
+    color: white;
+    border: none;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: transform 0.2s;
+  }
+  .btn-send:hover { transform: scale(1.1); }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // 1. Setup Variables
+  const chatBox = document.getElementById('chat-box');
+  const rideId = {{ ride.id }};
+  
+  // CRITICAL FIX: Do NOT declare 'const socket = io();' here. 
+  // It is already declared in base.html. We just use the global 'socket'.
+
+  // Scroll to bottom immediately
+  chatBox.scrollTop = chatBox.scrollHeight;
+
+  // 2. Join Room
+  // We use the existing connection from base.html
+  socket.emit('join_ride', { ride_id: rideId });
+
+  // 3. Send Message Logic
+  function sendMessage(e) {
+      e.preventDefault();
+      const input = document.getElementById('message-input');
+      const msg = input.value.trim();
+
+      if (msg) {
+          console.log("Sending:", msg);
+          socket.emit('send_message', {
+              ride_id: rideId,
+              message: msg
+          });
+          input.value = '';
+          input.focus();
+      }
+  }
+
+  // 4. Receive Message Logic
+  socket.on('new_message', function(data) {
+      console.log("New message received:", data);
+      
+      const isMe = data.sender_id == {{ session.user_id }};
+      
+      const bubbleHTML = `
+          <div class="message ${isMe ? 'sent' : 'received'}">
+              <div class="msg-bubble">
+                  ${!isMe ? `<small class="msg-sender">${data.sender_name}</small>` : ''}
+                  <p>${data.message}</p>
+                  <span class="msg-time">${data.created_at}</span>
+              </div>
+          </div>
+      `;
+
+      chatBox.insertAdjacentHTML('beforeend', bubbleHTML);
+      chatBox.scrollTop = chatBox.scrollHeight;
+  });
+
+  // 5. Ping Driver Logic
+  function pingDriver(rideId) {
+      if(confirm("Ping the driver?")) {
+          fetch(`/ping-driver/${rideId}`, { method: 'POST' })
+              .then(res => res.json())
+              .then(data => alert(data.success || data.error));
+      }
+  }
+</script>
+{% endblock %}

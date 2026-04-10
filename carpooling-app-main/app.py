@@ -405,5 +405,6 @@ def handle_send_message(data):
 if __name__ == "__main__":
     # Render assigns a port automatically, or defaults to 5000 locally
     port = int(os.environ.get("PORT", 5000))
-    # Removed debug=True for production security!
-    socketio.run(app, host="0.0.0.0", port=port)
+    
+    # Added allow_unsafe_werkzeug=True to bypass the production server block
+    socketio.run(app, host="0.0.0.0", port=port, allow_unsafe_werkzeug=True)

@@ -402,7 +402,8 @@ def handle_send_message(data):
         },
         room=f"ride_{ride_id}",
     )
-
-
 if __name__ == "__main__":
-    socketio.run(app,host="0.0.0.0",port="5000", debug=True)
+    # Render assigns a port automatically, or defaults to 5000 locally
+    port = int(os.environ.get("PORT", 5000))
+    # Removed debug=True for production security!
+    socketio.run(app, host="0.0.0.0", port=port)
